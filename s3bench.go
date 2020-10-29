@@ -45,6 +45,34 @@ func (params *Params) prepareBucket(cfg *aws.Config) bool {
 	return false
 }
 
+/*
+- fills the buffer with interleaved random/zero values;
+- each block_size has Z bytes of zeroes and R bytes of random data;
+- Z + R = block_size
+- Z / R = zero_ratio
+- each block of block_size bytes is repeated dup_ratio times, i.e. the number of copies is (dup_ratio + 1)
+ */
+func fill(buf []byte, size int64, block_size int64, zero_ratio float32, dup_ratio int64) {
+
+	for i := int64(0); i < (size + block_size - 1) / block_size; i++ {
+		var left int64 = size - i * block_size
+		if left > block_size {
+			left = block_size
+		}
+		var offset int64 = i * block_size
+		if i % (dup_ratio + 1) == 0 {
+			left = int64(float32(left) / (zero_ratio + 1))
+			_, err := rand.Read(bufferBytes[offset : offset + left])
+			if err != nil {
+				panic("Could not allocate a buffer")
+			}
+		} else {
+			var random_offset int64 = (i - i % (dup_ratio + 1)) * block_size
+			copy(bufferBytes[offset : offset + left], bufferBytes[random_offset : random_offset + block_size])
+		}
+	}
+}
+
 func main() {
 	endpoint := flag.String("endpoint", "", "S3 endpoint(s) comma separated - http://IP:PORT,http://IP:PORT")
 	region := flag.String("region", "igneous-test", "AWS region to use, eg: us-west-1|us-east-1, etc")
@@ -137,23 +165,7 @@ func main() {
 		var dup_ratio int64 = 3
 		var block_size int64 = 4096
 		bufferBytes = make([]byte, params.objectSize, params.objectSize)
-		for i := int64(0); i < (params.objectSize + block_size - 1) / block_size; i++ {
-			var left int64 = params.objectSize - i * block_size
-			if left > block_size {
-				left = block_size
-			}
-			var offset int64 = i * block_size
-			if i % (dup_ratio + 1) == 0 {
-				left = int64(float32(left) / (zero_ratio + 1))
-				_, err := rand.Read(bufferBytes[offset : offset + left])
-				if err != nil {
-					panic("Could not allocate a buffer")
-				}
-			} else {
-				var random_offset int64 = (i - i % (dup_ratio + 1)) * block_size
-				copy(bufferBytes[offset : offset + left], bufferBytes[random_offset : random_offset + block_size])
-			}
-		}
+		fill(bufferBytes, params.objectSize, block_size, zero_ratio, dup_ratio)
 		data_hash = sha512.Sum512(bufferBytes)
 		data_hash_base32 = to_b32(data_hash[:])
 		params.printf("Done (%s)\n", time.Since(timeGenData))
