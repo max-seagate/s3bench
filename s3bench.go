@@ -54,20 +54,20 @@ func (params *Params) prepareBucket(cfg *aws.Config) bool {
  */
 func fill(buf []byte, size int64, block_size int64, zero_ratio float32, dup_ratio int64) {
 
-	for i := int64(0); i < (size + block_size - 1) / block_size; i++ {
-		var left int64 = size - i * block_size
+	huge_block := block_size * (dup_ratio + 1)
+	for offset := int64(0); offset < size; offset += block_size {
+		left := size - offset
 		if left > block_size {
 			left = block_size
 		}
-		var offset int64 = i * block_size
-		if i % (dup_ratio + 1) == 0 {
+		if offset % huge_block == 0 {
 			left = int64(float32(left) / (zero_ratio + 1))
 			_, err := rand.Read(bufferBytes[offset : offset + left])
 			if err != nil {
 				panic("Could not allocate a buffer")
 			}
 		} else {
-			var random_offset int64 = (i - i % (dup_ratio + 1)) * block_size
+			var random_offset int64 = offset - offset % huge_block
 			copy(bufferBytes[offset : offset + left], bufferBytes[random_offset : random_offset + block_size])
 		}
 	}
