@@ -133,10 +133,26 @@ func main() {
 		// Generate the data from which we will do the writting
 		params.printf("Generating in-memory sample data...\n")
 		timeGenData := time.Now()
+		var zero_ratio float32 = 1.5
+		var dup_ratio int64 = 3
+		var block_size int64 = 4096
 		bufferBytes = make([]byte, params.objectSize, params.objectSize)
-		_, err := rand.Read(bufferBytes)
-		if err != nil {
-			panic("Could not allocate a buffer")
+		for i := int64(0); i < (params.objectSize + block_size - 1) / block_size; i++ {
+			var left int64 = params.objectSize - i * block_size
+			if left > block_size {
+				left = block_size
+			}
+			var offset int64 = i * block_size
+			if i % (dup_ratio + 1) == 0 {
+				left = int64(float32(left) / (zero_ratio + 1))
+				_, err := rand.Read(bufferBytes[offset : offset + left])
+				if err != nil {
+					panic("Could not allocate a buffer")
+				}
+			} else {
+				var random_offset int64 = (i - i % (dup_ratio + 1)) * block_size
+				copy(bufferBytes[offset : offset + left], bufferBytes[random_offset : random_offset + block_size])
+			}
 		}
 		data_hash = sha512.Sum512(bufferBytes)
 		data_hash_base32 = to_b32(data_hash[:])
