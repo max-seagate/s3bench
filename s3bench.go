@@ -52,7 +52,7 @@ func (params *Params) prepareBucket(cfg *aws.Config) bool {
 - Z / R = zero_ratio
 - each block of block_size bytes is repeated dup_ratio times, i.e. the number of copies is (dup_ratio + 1)
  */
-func fill(buf []byte, size int64, block_size int64, zero_ratio float32, dup_ratio int64) {
+func fill(buf []byte, size int64, block_size int64, zero_ratio float64, dup_ratio int64) {
 
 	large_block := block_size * (dup_ratio + 1)
 	for offset := int64(0); offset < size; offset += block_size {
@@ -61,7 +61,7 @@ func fill(buf []byte, size int64, block_size int64, zero_ratio float32, dup_rati
 			left = block_size
 		}
 		if offset % large_block == 0 {
-			left = int64(float32(left) / (zero_ratio + 1))
+			left = int64(float64(left) / (zero_ratio + 1))
 			_, err := rand.Read(bufferBytes[offset : offset + left])
 			if err != nil {
 				panic("Could not allocate a buffer")
@@ -100,6 +100,9 @@ func main() {
 	validate := flag.Bool("validate", false, "validate stored data")
 	skipWrite := flag.Bool("skipWrite", false, "do not run Write test")
 	skipRead := flag.Bool("skipRead", false, "do not run Read test")
+	reductionBlockSize := flag.Int64("reductionBlockSize", 4096, "Block size for zeroRatio and dupRatio")
+	zeroRatio := flag.Float64("zeroRatio", 0., "zero:random ratio in each block with reductionBlockSize")
+	dupRatio := flag.Int64("dupRatio", 0, "Number of duplicates of for each reductionBlockSize block")
 
 	flag.Parse()
 
@@ -131,41 +134,42 @@ func main() {
 
 	// Setup and print summary of the accepted parameters
 	params := Params{
-		requests:         make(chan Req),
-		responses:        make(chan Resp),
-		numSamples:       uint(*numSamples),
-		numClients:       uint(*numClients),
-		objectSize:       parse_size(*objectSize),
-		objectNamePrefix: *objectNamePrefix,
-		bucketName:       *bucketName,
-		endpoints:        strings.Split(*endpoint, ","),
-		verbose:          *verbose,
-		headObj:          *headObj,
-		sampleReads:      uint(*sampleReads),
-		clientDelay:      *clientDelay,
-		jsonOutput:       *jsonOutput,
-		deleteAtOnce:     *deleteAtOnce,
-		putObjTag:        *putObjTag || *getObjTag,
-		getObjTag:        *getObjTag,
-		numTags:          uint(*numTags),
-		readObj:          !(*putObjTag || *getObjTag || *headObj) && !*skipRead,
-		tagNamePrefix:    *tagNamePrefix,
-		tagValPrefix:     *tagValPrefix,
-		reportFormat:     *reportFormat,
-		validate:         *validate,
-		skipWrite:        *skipWrite,
-		skipRead:         *skipRead,
+		requests:           make(chan Req),
+		responses:          make(chan Resp),
+		numSamples:         uint(*numSamples),
+		numClients:         uint(*numClients),
+		objectSize:         parse_size(*objectSize),
+		objectNamePrefix:   *objectNamePrefix,
+		bucketName:         *bucketName,
+		endpoints:          strings.Split(*endpoint, ","),
+		verbose:            *verbose,
+		headObj:            *headObj,
+		sampleReads:        uint(*sampleReads),
+		clientDelay:        *clientDelay,
+		jsonOutput:         *jsonOutput,
+		deleteAtOnce:       *deleteAtOnce,
+		putObjTag:          *putObjTag || *getObjTag,
+		getObjTag:          *getObjTag,
+		numTags:            uint(*numTags),
+		readObj:            !(*putObjTag || *getObjTag || *headObj) && !*skipRead,
+		tagNamePrefix:      *tagNamePrefix,
+		tagValPrefix:       *tagValPrefix,
+		reportFormat:       *reportFormat,
+		validate:           *validate,
+		skipWrite:          *skipWrite,
+		skipRead:           *skipRead,
+		reductionBlockSize: *reductionBlockSize,
+		zeroRatio:	    *zeroRatio,
+		dupRatio:	    *dupRatio,
 	}
 
 	if !params.skipWrite {
 		// Generate the data from which we will do the writting
 		params.printf("Generating in-memory sample data...\n")
 		timeGenData := time.Now()
-		var zero_ratio float32 = 1.5
-		var dup_ratio int64 = 3
-		var block_size int64 = 4096
 		bufferBytes = make([]byte, params.objectSize, params.objectSize)
-		fill(bufferBytes, params.objectSize, block_size, zero_ratio, dup_ratio)
+		fill(bufferBytes, params.objectSize, params.reductionBlockSize,
+		     params.zeroRatio, params.dupRatio)
 		data_hash = sha512.Sum512(bufferBytes)
 		data_hash_base32 = to_b32(data_hash[:])
 		params.printf("Done (%s)\n", time.Since(timeGenData))
