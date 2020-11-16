@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"math"
 	mathrand "math/rand"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -45,32 +46,54 @@ func (params *Params) prepareBucket(cfg *aws.Config) bool {
 	return false
 }
 
-/*
-- fills the buffer with interleaved random/zero values;
-- each block_size has Z bytes of zeroes and R bytes of random data;
-- Z + R = block_size
-- Z / R = zero_ratio
-- each block of block_size bytes is repeated dup_ratio times, i.e. the number of copies is (dup_ratio + 1)
- */
-func fill(buf []byte, size int64, block_size int64, zero_ratio float64, dup_ratio int64) {
-
-	large_block := block_size * (dup_ratio + 1)
-	for offset := int64(0); offset < size; offset += block_size {
-		left := size - offset
-		if left > block_size {
-			left = block_size
+func bufferFill(buf []byte, size int64, reductionBlockSize int64, compressionRatio float64, dedupBlocksNR int64, dedupRatio float64) {
+	// lb for large block
+	lb_size := reductionBlockSize * dedupBlocksNR;  // size of a large block
+	lb_nr := (size + lb_size - 1) / lb_size         // total number of large blocks
+	for j := int64(0); j < lb_nr; j++ {
+		lb_offset := j * lb_size                // large block offset within buf
+		lb_length := size - lb_offset           // remaning size of the large block
+		if (lb_length > lb_size) {
+			lb_length = lb_size
 		}
-		if offset % large_block == 0 {
-			left = int64(float64(left) / (zero_ratio + 1))
-			_, err := rand.Read(bufferBytes[offset : offset + left])
-			if err != nil {
-				panic("Could not allocate a buffer")
+		block_nr := (lb_length + reductionBlockSize - 1) / reductionBlockSize	// number of blocks within the large block
+		uniq_block_nr := int64(math.Round(float64(block_nr) * dedupRatio))		// number of unique block within the large block
+		if (uniq_block_nr > block_nr) {
+			uniq_block_nr = block_nr
+		}
+		if (uniq_block_nr < 1) {
+			uniq_block_nr = 1
+		}
+		perm := mathrand.Perm(int(block_nr))
+		for i, index := range perm {
+			block_offset := int64(index) * reductionBlockSize
+			block_size := lb_length - block_offset
+			if (block_size >  reductionBlockSize) {
+				block_size = reductionBlockSize
 			}
-		} else {
-			var random_offset int64 = offset - offset % large_block
-			copy(bufferBytes[offset : offset + left], bufferBytes[random_offset : random_offset + block_size])
+			block_offset += lb_offset
+			block_rand := int64(math.Round(float64(block_size) * compressionRatio))
+			if (block_rand > block_size) {
+				block_rand = block_size
+			}
+			if (int64(i) < uniq_block_nr) {
+				_, err := rand.Read(buf[block_offset : block_offset + block_rand])
+				if err != nil {
+					panic("Could not fill a buffer with rand.Read()")
+				}
+			} else {
+				src_offset := lb_offset + int64(perm[int64(i) % uniq_block_nr]) * reductionBlockSize
+				copy(buf[block_offset : block_offset + block_size],
+				     buf[src_offset : src_offset + reductionBlockSize])
+			}
 		}
 	}
+}
+
+func bufferGenerate(size int64, reductionBlockSize int64, compressionRatio float64, dedupBlocksNR int64, dedupRatio float64) []byte {
+	buf := make([]byte, size, size)
+	bufferFill(buf, size, reductionBlockSize, compressionRatio, dedupBlocksNR, dedupRatio)
+	return buf
 }
 
 func main() {
@@ -100,15 +123,49 @@ func main() {
 	validate := flag.Bool("validate", false, "validate stored data")
 	skipWrite := flag.Bool("skipWrite", false, "do not run Write test")
 	skipRead := flag.Bool("skipRead", false, "do not run Read test")
-	reductionBlockSize := flag.Int64("reductionBlockSize", 4096, "Block size for zeroRatio and dupRatio")
-	zeroRatio := flag.Float64("zeroRatio", 0., "zero:random ratio in each block with reductionBlockSize")
-	dupRatio := flag.Int64("dupRatio", 0, "Number of duplicates of for each reductionBlockSize block")
+	reductionBlockSize := flag.Int64("reductionBlockSize", 4096, "Block size for deduplication and compression")
+	compressionRatio := flag.Float64("compressionRatio", 1., "Approximate size factor for each block compression. Range: [0, 1]. 0 for all zeroes, 1 for uncompressible data.")
+	dedupBlocksNR := flag.Int64("dedupBlocksNR", 1, "Blocks are duplicated only withing every dedupBlocksNR blocks range.")
+	dedupRatio := flag.Float64("dedupRatio", 0., "Ratio of unique blocks within dedupBlocksNR. Range: [0, 1]. 0 for dedupBlocksNR copies of the same block, 1 for all unique blocks.")
+	testReductionFile := flag.String("testReductionFile", "", "File to store a buffer, filled with bufferFill. Nothing else except saving the buffer to the file is performed when this option is not empty. Options used: objectSize, reductionBlockSize, compressionRatio, dedupBlocksNR, dedupRatio.")
 
 	flag.Parse()
 
 	if *version {
 		fmt.Printf("%s-%s\n", buildDate, gitHash)
 		os.Exit(0)
+	}
+
+	if *compressionRatio > 1.0 || *compressionRatio < 0.0 {
+		fmt.Println("compressionRatio must be in range [0, 1].")
+		os.Exit(1)
+	}
+
+	if *dedupRatio > 1.0 || *dedupRatio < 0.0 {
+		fmt.Println("dedupRatio must be in range [0, 1].")
+		os.Exit(1)
+	}
+
+	if *dedupBlocksNR < 1 {
+		fmt.Println("dedupBlocksNR cannot be less than 1")
+		os.Exit(1)
+	}
+
+	if *reductionBlockSize < 1 {
+		fmt.Println("reductionBlockSize cannot be less than 1")
+		os.Exit(1)
+	}
+
+	if *testReductionFile != "" {
+		buf := bufferGenerate(parse_size(*objectSize), *reductionBlockSize,
+				      *compressionRatio, *dedupBlocksNR, *dedupRatio)
+		err := ioutil.WriteFile(*testReductionFile, buf, 0644)
+		if err != nil {
+			fmt.Println("Error writing to testReductionFile.")
+			os.Exit(1)
+		} else {
+			os.Exit(0)
+		}
 	}
 
 	if *numClients > *numSamples || *numSamples < 1 {
@@ -159,8 +216,10 @@ func main() {
 		skipWrite:          *skipWrite,
 		skipRead:           *skipRead,
 		reductionBlockSize: *reductionBlockSize,
-		zeroRatio:	    *zeroRatio,
-		dupRatio:	    *dupRatio,
+		compressionRatio:   *compressionRatio,
+		dedupBlocksNR:	    *dedupBlocksNR,
+		dedupRatio:	    *dedupRatio,
+		testReductionFile:  *testReductionFile,
 	}
 
 	if !params.skipWrite {
@@ -168,8 +227,8 @@ func main() {
 		params.printf("Generating in-memory sample data...\n")
 		timeGenData := time.Now()
 		bufferBytes = make([]byte, params.objectSize, params.objectSize)
-		fill(bufferBytes, params.objectSize, params.reductionBlockSize,
-		     params.zeroRatio, params.dupRatio)
+		bufferFill(bufferBytes, params.objectSize, params.reductionBlockSize,
+			   params.compressionRatio, params.dedupBlocksNR, params.dedupRatio)
 		data_hash = sha512.Sum512(bufferBytes)
 		data_hash_base32 = to_b32(data_hash[:])
 		params.printf("Done (%s)\n", time.Since(timeGenData))

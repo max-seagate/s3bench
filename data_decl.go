@@ -55,8 +55,10 @@ type Params struct {
 	skipWrite          bool
 	skipRead           bool
 	reductionBlockSize int64
-	zeroRatio	   float64
-	dupRatio	   int64
+	compressionRatio   float64
+	dedupBlocksNR      int64
+	dedupRatio	   float64
+	testReductionFile  string
 }
 
 // Contains the summary for a given test result
