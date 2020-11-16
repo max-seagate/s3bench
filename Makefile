@@ -1,4 +1,4 @@
-.PHONY: all build clean interactive
+.PHONY: all build clean interactive test
 
 s3bench_binary = s3bench
 s3bench_image = s3bench
@@ -13,8 +13,11 @@ build:
 	docker cp $(s3bench_pull_binary_container):/s3bench/s3bench ./$(s3bench_binary)
 	docker rm -f $(s3bench_pull_binary_container)
 
+clean:
+	docker image rm $(s3bench_image) || true
+
 interactive: build
 	docker run --interactive --tty --rm $(s3bench_image) || true
 
-clean:
-	docker image rm $(s3bench_image) || true
+test: build
+	./s3bench -testReductionFile test -objectSize 8Mb -reductionBlockSize 4096 -compressionRatio 0.3 -dedupBlocksNR 256 -dedupRatio 0.1
