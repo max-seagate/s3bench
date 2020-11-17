@@ -46,20 +46,19 @@ func (params *Params) prepareBucket(cfg *aws.Config) bool {
 	return false
 }
 
-func bufferFill(buf []byte, size int64, reductionBlockSize int64, compressionRatioPercent float64, dedupBlocksNR int64, dedupRatioPercent float64) {
+func bufferFill(buf []byte, size int64, reductionBlockSize int64, compressionRatioPercent float64, dedupCortxUnitSize int64, dedupRatioPercent float64) {
 	compressionRatio := compressionRatioPercent / 100.
 	dedupRatio := dedupRatioPercent / 100.
 	// lb for large block
-	lb_size := reductionBlockSize * dedupBlocksNR;  // size of a large block
-	lb_nr := (size + lb_size - 1) / lb_size         // total number of large blocks
+	lb_nr := (size + dedupCortxUnitSize - 1) / dedupCortxUnitSize   // total number of large blocks
 	for j := int64(0); j < lb_nr; j++ {
-		lb_offset := j * lb_size                // large block offset within buf
-		lb_length := size - lb_offset           // remaning size of the large block
-		if (lb_length > lb_size) {
-			lb_length = lb_size
+		lb_offset := j * dedupCortxUnitSize                     // large block offset within buf
+		lb_length := size - lb_offset                           // remaning size of the large block
+		if (lb_length > dedupCortxUnitSize) {
+			lb_length = dedupCortxUnitSize
 		}
-		block_nr := (lb_length + reductionBlockSize - 1) / reductionBlockSize	// number of blocks within the large block
-		uniq_block_nr := int64(math.Round(float64(block_nr) * dedupRatio))		// number of unique block within the large block
+		block_nr := (lb_length + reductionBlockSize - 1) / reductionBlockSize    // number of blocks within the large block
+		uniq_block_nr := int64(math.Round(float64(block_nr) * dedupRatio))       // number of unique block within the large block
 		if (uniq_block_nr > block_nr) {
 			uniq_block_nr = block_nr
 		}
@@ -92,9 +91,9 @@ func bufferFill(buf []byte, size int64, reductionBlockSize int64, compressionRat
 	}
 }
 
-func bufferGenerate(size int64, reductionBlockSize int64, compressionRatioPercent float64, dedupBlocksNR int64, dedupRatioPercent float64) []byte {
+func bufferGenerate(size int64, reductionBlockSize int64, compressionRatioPercent float64, dedupCortxUnitSize int64, dedupRatioPercent float64) []byte {
 	buf := make([]byte, size, size)
-	bufferFill(buf, size, reductionBlockSize, compressionRatioPercent, dedupBlocksNR, dedupRatioPercent)
+	bufferFill(buf, size, reductionBlockSize, compressionRatioPercent, dedupCortxUnitSize, dedupRatioPercent)
 	return buf
 }
 
@@ -126,10 +125,10 @@ func main() {
 	skipWrite := flag.Bool("skipWrite", false, "do not run Write test")
 	skipRead := flag.Bool("skipRead", false, "do not run Read test")
 	reductionBlockSize := flag.Int64("reductionBlockSize", 4096, "Block size for deduplication and compression")
-	compressionRatioPercent := flag.Float64("compressionRatioPercent", 100., "Approximate compression ratio percentage for each block compression. Range: [0, 100]. 0 for all zeroes, 100 for uncompressible data.")
-	dedupBlocksNR := flag.Int64("dedupBlocksNR", 1, "Blocks are duplicated only withing every dedupBlocksNR blocks range.")
-	dedupRatioPercent := flag.Float64("dedupRatioPercent", 0., "Approximate percentage ratio of unique blocks within dedupBlocksNR. Range: [0, 100]. 0 for dedupBlocksNR copies of the same block, 100 for all unique blocks.")
-	testReductionFile := flag.String("testReductionFile", "", "File to store a buffer, filled with bufferFill. Nothing else except saving the buffer to the file is performed when this option is not empty. Options used: objectSize, reductionBlockSize, compressionRatioPercent, dedupBlocksNR, dedupRatioPercent.")
+	compressionRatioPercent := flag.Float64("compressionRatioPercent", 100., "Approximate compression ratio percentage for each block compression. Range: [0, 100]. 0 for all zeroes, 100 for uncompressible data")
+	dedupCortxUnitSizeStr := flag.String("dedupCortxUnitSize", "1Mb", "Blocks are duplicated only withing every dedupCortxUnitSize of data. Must be a multiple of reductionBlockSize")
+	dedupRatioPercent := flag.Float64("dedupRatioPercent", 0., "Approximate percentage ratio of unique blocks within dedupCortxUnitSize. Range: [0, 100]. 0 for dedupCortxUnitSize copies of the same block, 100 for all unique blocks")
+	testReductionFile := flag.String("testReductionFile", "", "File to store a buffer, filled with bufferFill. Nothing else except saving the buffer to the file is performed when this option is not empty. Options used: objectSize, reductionBlockSize, compressionRatioPercent, dedupCortxUnitSize, dedupRatioPercent")
 
 	flag.Parse()
 
@@ -148,19 +147,25 @@ func main() {
 		os.Exit(1)
 	}
 
-	if *dedupBlocksNR < 1 {
-		fmt.Println("dedupBlocksNR cannot be less than 1")
-		os.Exit(1)
-	}
-
 	if *reductionBlockSize < 1 {
 		fmt.Println("reductionBlockSize cannot be less than 1")
 		os.Exit(1)
 	}
 
+	if parse_size(*dedupCortxUnitSizeStr) == 0 {
+		fmt.Println("dedupCortxUnitSize shouldn't be 0.")
+		os.Exit(1)
+	}
+
+	if parse_size(*dedupCortxUnitSizeStr) % *reductionBlockSize != 0 {
+		fmt.Println("dedupCortxUnitSize should be a multiple of reductionBlockSize.")
+		os.Exit(1)
+	}
+
 	if *testReductionFile != "" {
 		buf := bufferGenerate(parse_size(*objectSize), *reductionBlockSize,
-				      *compressionRatioPercent, *dedupBlocksNR, *dedupRatioPercent)
+				      *compressionRatioPercent, parse_size(*dedupCortxUnitSizeStr),
+				      *dedupRatioPercent)
 		err := ioutil.WriteFile(*testReductionFile, buf, 0644)
 		if err != nil {
 			fmt.Println("Error writing to testReductionFile.")
@@ -219,7 +224,7 @@ func main() {
 		skipRead:                *skipRead,
 		reductionBlockSize:      *reductionBlockSize,
 		compressionRatioPercent: *compressionRatioPercent,
-		dedupBlocksNR:	         *dedupBlocksNR,
+		dedupCortxUnitSize:      parse_size(*dedupCortxUnitSizeStr),
 		dedupRatioPercent:       *dedupRatioPercent,
 		testReductionFile:       *testReductionFile,
 	}
@@ -231,7 +236,7 @@ func main() {
 		bufferBytes = make([]byte, params.objectSize, params.objectSize)
 		bufferFill(bufferBytes, params.objectSize,
 		           params.reductionBlockSize, params.compressionRatioPercent,
-			   params.dedupBlocksNR, params.dedupRatioPercent)
+			   params.dedupCortxUnitSize, params.dedupRatioPercent)
 		data_hash = sha512.Sum512(bufferBytes)
 		data_hash_base32 = to_b32(data_hash[:])
 		params.printf("Done (%s)\n", time.Since(timeGenData))

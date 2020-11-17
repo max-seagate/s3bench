@@ -20,4 +20,4 @@ interactive: build
 	docker run --interactive --tty --rm $(s3bench_image) || true
 
 test: build
-	./s3bench -testReductionFile test -objectSize 8Mb -reductionBlockSize 4096 -compressionRatio 0.3 -dedupBlocksNR 256 -dedupRatio 0.1
+	./s3bench -testReductionFile test -objectSize 8Mb -reductionBlockSize 4096 -compressionRatioPercent 30 -dedupCortxUnitSize 1Mb -dedupRatioPercent 10

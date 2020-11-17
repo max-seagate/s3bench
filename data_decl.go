@@ -56,7 +56,7 @@ type Params struct {
 	skipRead                bool
 	reductionBlockSize      int64
 	compressionRatioPercent float64
-	dedupBlocksNR           int64
+	dedupCortxUnitSize      int64
 	dedupRatioPercent       float64
 	testReductionFile       string
 }
