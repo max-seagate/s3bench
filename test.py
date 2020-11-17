@@ -97,8 +97,6 @@ def main() -> None:
         }
     HH = header(H)
     VH = header(V)
-    print(HH)
-    print(VH)
     for kind in ['compression', 'dedup']:
         print(kind)
         for hh in H:
