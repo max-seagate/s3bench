@@ -1,0 +1,21 @@
+FROM python:3.9
+
+RUN apt update
+
+RUN pip install flake8 mypy
+
+RUN pip install plumbum
+
+RUN apt install -y lz4 parallel
+
+WORKDIR /s3bench
+
+COPY ./s3bench .
+
+COPY ./test.py .
+
+COPY ./test-single.sh .
+
+RUN python -m flake8 test.py
+
+RUN python -m mypy --strict --show-error-context --show-error-codes --pretty test.py

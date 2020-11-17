@@ -124,7 +124,7 @@ func main() {
 	validate := flag.Bool("validate", false, "validate stored data")
 	skipWrite := flag.Bool("skipWrite", false, "do not run Write test")
 	skipRead := flag.Bool("skipRead", false, "do not run Read test")
-	reductionBlockSize := flag.Int64("reductionBlockSize", 4096, "Block size for deduplication and compression")
+	reductionBlockSizeStr := flag.String("reductionBlockSize", "4096b", "Block size for deduplication and compression")
 	compressionRatioPercent := flag.Float64("compressionRatioPercent", 100., "Approximate compression ratio percentage for each block compression. Range: [0, 100]. 0 for all zeroes, 100 for uncompressible data")
 	dedupCortxUnitSizeStr := flag.String("dedupCortxUnitSize", "1Mb", "Blocks are duplicated only withing every dedupCortxUnitSize of data. Must be a multiple of reductionBlockSize")
 	dedupRatioPercent := flag.Float64("dedupRatioPercent", 0., "Approximate percentage ratio of unique blocks within dedupCortxUnitSize. Range: [0, 100]. 0 for dedupCortxUnitSize copies of the same block, 100 for all unique blocks")
@@ -147,7 +147,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if *reductionBlockSize < 1 {
+	if parse_size(*reductionBlockSizeStr) < 1 {
 		fmt.Println("reductionBlockSize cannot be less than 1")
 		os.Exit(1)
 	}
@@ -157,13 +157,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	if parse_size(*dedupCortxUnitSizeStr) % *reductionBlockSize != 0 {
+	if parse_size(*dedupCortxUnitSizeStr) % parse_size(*reductionBlockSizeStr) != 0 {
 		fmt.Println("dedupCortxUnitSize should be a multiple of reductionBlockSize.")
 		os.Exit(1)
 	}
 
 	if *testReductionFile != "" {
-		buf := bufferGenerate(parse_size(*objectSize), *reductionBlockSize,
+		buf := bufferGenerate(parse_size(*objectSize), parse_size(*reductionBlockSizeStr),
 				      *compressionRatioPercent, parse_size(*dedupCortxUnitSizeStr),
 				      *dedupRatioPercent)
 		err := ioutil.WriteFile(*testReductionFile, buf, 0644)
@@ -222,7 +222,7 @@ func main() {
 		validate:                *validate,
 		skipWrite:               *skipWrite,
 		skipRead:                *skipRead,
-		reductionBlockSize:      *reductionBlockSize,
+		reductionBlockSize:      parse_size(*reductionBlockSizeStr),
 		compressionRatioPercent: *compressionRatioPercent,
 		dedupCortxUnitSize:      parse_size(*dedupCortxUnitSizeStr),
 		dedupRatioPercent:       *dedupRatioPercent,
