@@ -46,7 +46,9 @@ func (params *Params) prepareBucket(cfg *aws.Config) bool {
 	return false
 }
 
-func bufferFill(buf []byte, size int64, reductionBlockSize int64, compressionRatio float64, dedupBlocksNR int64, dedupRatio float64) {
+func bufferFill(buf []byte, size int64, reductionBlockSize int64, compressionRatioPercent float64, dedupBlocksNR int64, dedupRatioPercent float64) {
+	compressionRatio := compressionRatioPercent / 100.
+	dedupRatio := dedupRatioPercent / 100.
 	// lb for large block
 	lb_size := reductionBlockSize * dedupBlocksNR;  // size of a large block
 	lb_nr := (size + lb_size - 1) / lb_size         // total number of large blocks
@@ -90,9 +92,9 @@ func bufferFill(buf []byte, size int64, reductionBlockSize int64, compressionRat
 	}
 }
 
-func bufferGenerate(size int64, reductionBlockSize int64, compressionRatio float64, dedupBlocksNR int64, dedupRatio float64) []byte {
+func bufferGenerate(size int64, reductionBlockSize int64, compressionRatioPercent float64, dedupBlocksNR int64, dedupRatioPercent float64) []byte {
 	buf := make([]byte, size, size)
-	bufferFill(buf, size, reductionBlockSize, compressionRatio, dedupBlocksNR, dedupRatio)
+	bufferFill(buf, size, reductionBlockSize, compressionRatioPercent, dedupBlocksNR, dedupRatioPercent)
 	return buf
 }
 
@@ -124,10 +126,10 @@ func main() {
 	skipWrite := flag.Bool("skipWrite", false, "do not run Write test")
 	skipRead := flag.Bool("skipRead", false, "do not run Read test")
 	reductionBlockSize := flag.Int64("reductionBlockSize", 4096, "Block size for deduplication and compression")
-	compressionRatio := flag.Float64("compressionRatio", 1., "Approximate size factor for each block compression. Range: [0, 1]. 0 for all zeroes, 1 for uncompressible data.")
+	compressionRatioPercent := flag.Float64("compressionRatioPercent", 100., "Approximate compression ratio percentage for each block compression. Range: [0, 100]. 0 for all zeroes, 100 for uncompressible data.")
 	dedupBlocksNR := flag.Int64("dedupBlocksNR", 1, "Blocks are duplicated only withing every dedupBlocksNR blocks range.")
-	dedupRatio := flag.Float64("dedupRatio", 0., "Ratio of unique blocks within dedupBlocksNR. Range: [0, 1]. 0 for dedupBlocksNR copies of the same block, 1 for all unique blocks.")
-	testReductionFile := flag.String("testReductionFile", "", "File to store a buffer, filled with bufferFill. Nothing else except saving the buffer to the file is performed when this option is not empty. Options used: objectSize, reductionBlockSize, compressionRatio, dedupBlocksNR, dedupRatio.")
+	dedupRatioPercent := flag.Float64("dedupRatioPercent", 0., "Approximate percentage ratio of unique blocks within dedupBlocksNR. Range: [0, 100]. 0 for dedupBlocksNR copies of the same block, 100 for all unique blocks.")
+	testReductionFile := flag.String("testReductionFile", "", "File to store a buffer, filled with bufferFill. Nothing else except saving the buffer to the file is performed when this option is not empty. Options used: objectSize, reductionBlockSize, compressionRatioPercent, dedupBlocksNR, dedupRatioPercent.")
 
 	flag.Parse()
 
@@ -136,13 +138,13 @@ func main() {
 		os.Exit(0)
 	}
 
-	if *compressionRatio > 1.0 || *compressionRatio < 0.0 {
-		fmt.Println("compressionRatio must be in range [0, 1].")
+	if *compressionRatioPercent > 100.0 || *compressionRatioPercent < 0.0 {
+		fmt.Println("compressionRatioPercent must be in range [0, 100].")
 		os.Exit(1)
 	}
 
-	if *dedupRatio > 1.0 || *dedupRatio < 0.0 {
-		fmt.Println("dedupRatio must be in range [0, 1].")
+	if *dedupRatioPercent > 100.0 || *dedupRatioPercent < 0.0 {
+		fmt.Println("dedupRatioPercent must be in range [0, 100].")
 		os.Exit(1)
 	}
 
@@ -158,7 +160,7 @@ func main() {
 
 	if *testReductionFile != "" {
 		buf := bufferGenerate(parse_size(*objectSize), *reductionBlockSize,
-				      *compressionRatio, *dedupBlocksNR, *dedupRatio)
+				      *compressionRatioPercent, *dedupBlocksNR, *dedupRatioPercent)
 		err := ioutil.WriteFile(*testReductionFile, buf, 0644)
 		if err != nil {
 			fmt.Println("Error writing to testReductionFile.")
@@ -191,35 +193,35 @@ func main() {
 
 	// Setup and print summary of the accepted parameters
 	params := Params{
-		requests:           make(chan Req),
-		responses:          make(chan Resp),
-		numSamples:         uint(*numSamples),
-		numClients:         uint(*numClients),
-		objectSize:         parse_size(*objectSize),
-		objectNamePrefix:   *objectNamePrefix,
-		bucketName:         *bucketName,
-		endpoints:          strings.Split(*endpoint, ","),
-		verbose:            *verbose,
-		headObj:            *headObj,
-		sampleReads:        uint(*sampleReads),
-		clientDelay:        *clientDelay,
-		jsonOutput:         *jsonOutput,
-		deleteAtOnce:       *deleteAtOnce,
-		putObjTag:          *putObjTag || *getObjTag,
-		getObjTag:          *getObjTag,
-		numTags:            uint(*numTags),
-		readObj:            !(*putObjTag || *getObjTag || *headObj) && !*skipRead,
-		tagNamePrefix:      *tagNamePrefix,
-		tagValPrefix:       *tagValPrefix,
-		reportFormat:       *reportFormat,
-		validate:           *validate,
-		skipWrite:          *skipWrite,
-		skipRead:           *skipRead,
-		reductionBlockSize: *reductionBlockSize,
-		compressionRatio:   *compressionRatio,
-		dedupBlocksNR:	    *dedupBlocksNR,
-		dedupRatio:	    *dedupRatio,
-		testReductionFile:  *testReductionFile,
+		requests:                make(chan Req),
+		responses:               make(chan Resp),
+		numSamples:              uint(*numSamples),
+		numClients:              uint(*numClients),
+		objectSize:              parse_size(*objectSize),
+		objectNamePrefix:        *objectNamePrefix,
+		bucketName:              *bucketName,
+		endpoints:               strings.Split(*endpoint, ","),
+		verbose:                 *verbose,
+		headObj:                 *headObj,
+		sampleReads:             uint(*sampleReads),
+		clientDelay:             *clientDelay,
+		jsonOutput:              *jsonOutput,
+		deleteAtOnce:            *deleteAtOnce,
+		putObjTag:               *putObjTag || *getObjTag,
+		getObjTag:               *getObjTag,
+		numTags:                 uint(*numTags),
+		readObj:                 !(*putObjTag || *getObjTag || *headObj) && !*skipRead,
+		tagNamePrefix:           *tagNamePrefix,
+		tagValPrefix:            *tagValPrefix,
+		reportFormat:            *reportFormat,
+		validate:                *validate,
+		skipWrite:               *skipWrite,
+		skipRead:                *skipRead,
+		reductionBlockSize:      *reductionBlockSize,
+		compressionRatioPercent: *compressionRatioPercent,
+		dedupBlocksNR:	         *dedupBlocksNR,
+		dedupRatioPercent:       *dedupRatioPercent,
+		testReductionFile:       *testReductionFile,
 	}
 
 	if !params.skipWrite {
@@ -227,8 +229,9 @@ func main() {
 		params.printf("Generating in-memory sample data...\n")
 		timeGenData := time.Now()
 		bufferBytes = make([]byte, params.objectSize, params.objectSize)
-		bufferFill(bufferBytes, params.objectSize, params.reductionBlockSize,
-			   params.compressionRatio, params.dedupBlocksNR, params.dedupRatio)
+		bufferFill(bufferBytes, params.objectSize,
+		           params.reductionBlockSize, params.compressionRatioPercent,
+			   params.dedupBlocksNR, params.dedupRatioPercent)
 		data_hash = sha512.Sum512(bufferBytes)
 		data_hash_base32 = to_b32(data_hash[:])
 		params.printf("Done (%s)\n", time.Since(timeGenData))
