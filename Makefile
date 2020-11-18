@@ -28,5 +28,5 @@ test-interactive: build test-build
 	docker run --interactive --tty --rm $(test_image) /bin/bash || true
 
 test: build test-build
-	./s3bench -testReductionFile test-reduction-file -objectSize 8Mb -reductionBlockSize 4Kb -compressionPercent 30 -dedupCortxUnitSize 1Mb -dedupPercent 10
+	./s3bench -testReductionFile test-reduction-file -objectSize 8MiB -reductionBlockSize 4KiB -compressionPercent 30 -dedupCortxUnitSize 1MiB -dedupPercent 10
 	docker run --tty --rm $(test_image) ./test.py || true

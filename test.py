@@ -14,16 +14,16 @@ from typing import Tuple
 from typing import Optional
 
 
-OBJECT_SIZE = 16 * 2 ** 20
 PARAMS = {
     'compressionPercent': ['0', '10', '20', '40', '60', '80', '100'],
     'dedupPercent':       ['0', '10', '20', '40', '60', '80', '100'],
-    'reductionBlockSize': ['4Kb', '16Kb', '64Kb', '256Kb', '1Mb'],
-    'dedupCortxUnitSize': ['1Mb', '4Mb'],
-    'objectSize':         [f'{str(OBJECT_SIZE)}b'],
+    'reductionBlockSize': ['4KiB', '16KiB', '64KiB', '256KiB', '1MiB'],
+    'dedupCortxUnitSize': ['1MiB', '4MiB'],
+    'objectSize':         ['16MiB'],
 }
-SPLIT_SIZE = {'4Kb': 4096, '16Kb': 16384, '64Kb': 65536, '256Kb': 262144,
-              '1Mb': 1048576}
+SPLIT_SIZE = {'4KiB': 4096, '16KiB': 16384, '64KiB': 65536, '256KiB': 262144,
+              '1MiB': 1048576}
+OBJECT_SIZE = {'16MiB': 16 * 2 ** 20}
 COMPRESSOR = 'lz4'
 HASH = 'sha1sum'
 PATH = 'test'
@@ -91,8 +91,10 @@ def main() -> None:
                 files[d] = f.read()
         dedup = float(files['results_dedup'].split()[0]) / \
             float(int(files['results_dedup'].split()[1]))
+        print(v)
         r[c] = {
-            'compression': float(files['results_compressed']) / OBJECT_SIZE,
+            'compression': float(files['results_compressed']) /
+            OBJECT_SIZE[v[names.index('objectSize')]],
             'dedup': dedup,
         }
     HH = header(H)

@@ -22,14 +22,18 @@ func from_b32(s string) ([]byte, error) {
 
 func parse_size(sz string) int64 {
 	sizes := map[string]int64 {
-		"b": 1,
-		"Kb": 1024,
-		"Mb": 1024 * 1024,
-		"Gb": 1024 * 1024 * 1024,
+		"": 1,
+		"B": 1,
+		"KiB": 1024,
+		"MiB": 1024 * 1024,
+		"GiB": 1024 * 1024 * 1024,
 	}
-	re := regexp.MustCompile(`^(\d+)([bKMG]{1,2})$`)
+	re := regexp.MustCompile(`^(\d+)(|B|KiB|MiB|GiB)$`)
 	mm := re.FindStringSubmatch(sz)
 	if len(mm) != 3 {
+		fmt.Println(mm)
+		fmt.Println(sz)
+		fmt.Println(re)
 		panic("Invalid objectSize value format\n")
 	}
 	val, err := strconv.ParseInt(string(mm[1]), 10, 64)
