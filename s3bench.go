@@ -72,9 +72,10 @@ func main() {
 	skipWrite := flag.Bool("skipWrite", false, "do not run Write test")
 	skipRead := flag.Bool("skipRead", false, "do not run Read test")
 	reductionBlockSizeStr := flag.String("reductionBlockSize", "4096b", "Block size for deduplication and compression")
-	compressionPercent := flag.Float64("compressionPercent", 100., "Approximate compression percentage for each block compression. Range: [0, 100]. 0 for all zeroes, 100 for uncompressible data")
+	compressionPercent := flag.Float64("compressionPercent", 100., "Approximate compression percentage for each block compression. Range: [0, 100]. 0 for all bytes to the same value (0 if fillZerosWithA is false, 'A' otherwise), 100 for uncompressible data")
 	dedupCortxUnitSizeStr := flag.String("dedupCortxUnitSize", "1Mb", "Blocks are duplicated only within every dedupCortxUnitSize of data. Must be a multiple of reductionBlockSize")
 	dedupPercent := flag.Float64("dedupPercent", 0., "Approximate percentage of unique blocks within dedupCortxUnitSize. Range: [0, 100]. 0 for dedupCortxUnitSize copies of the same block, 100 for all unique blocks")
+	fillZerosWithA := flag.Bool("fillZerosWithA", false, "When filling buffers with random data according to compressionPercent fill the rest of the buffer with 'A' characters instead of filling with 0s.")
 	testReductionFile := flag.String("testReductionFile", "", "File to store a buffer, filled with bufferFill. Nothing else except saving the buffer to the file is performed when this option is not empty. Options used: objectSize, reductionBlockSize, compressionPercent, dedupCortxUnitSize, dedupPercent")
 
 	flag.Parse()
@@ -112,7 +113,7 @@ func main() {
 	if *testReductionFile != "" {
 		buf := bufferGenerate(parse_size(*objectSize), parse_size(*reductionBlockSizeStr),
 				      *compressionPercent, parse_size(*dedupCortxUnitSizeStr),
-				      *dedupPercent)
+				      *dedupPercent, *fillZerosWithA)
 		err := ioutil.WriteFile(*testReductionFile, buf, 0644)
 		if err != nil {
 			fmt.Println("Error writing to testReductionFile.")
@@ -174,6 +175,7 @@ func main() {
 		dedupCortxUnitSize:      parse_size(*dedupCortxUnitSizeStr),
 		dedupPercent:       *dedupPercent,
 		testReductionFile:       *testReductionFile,
+		fillZerosWithA:          *fillZerosWithA,
 	}
 
 	if !params.skipWrite {
@@ -183,7 +185,8 @@ func main() {
 		bufferBytes = make([]byte, params.objectSize, params.objectSize)
 		bufferFill(bufferBytes, params.objectSize,
 		           params.reductionBlockSize, params.compressionPercent,
-			   params.dedupCortxUnitSize, params.dedupPercent)
+			   params.dedupCortxUnitSize, params.dedupPercent,
+	                   params.fillZerosWithA)
 		data_hash = sha512.Sum512(bufferBytes)
 		data_hash_base32 = to_b32(data_hash[:])
 		params.printf("Done (%s)\n", time.Since(timeGenData))

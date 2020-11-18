@@ -59,6 +59,7 @@ type Params struct {
 	dedupCortxUnitSize int64
 	dedupPercent       float64
 	testReductionFile  string
+	fillZerosWithA     bool
 }
 
 // Contains the summary for a given test result
