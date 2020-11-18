@@ -24,12 +24,17 @@ PARAMS = {
 SPLIT_SIZE = {'4KiB': 4096, '16KiB': 16384, '64KiB': 65536, '256KiB': 262144,
               '1MiB': 1048576}
 OBJECT_SIZE = {'16MiB': 16 * 2 ** 20}
-COMPRESSOR = 'lz4'
 HASH = 'sha1sum'
 PATH = 'test'
 W = 6
 H = ['dedupPercent', 'dedupCortxUnitSize']
 V = ['compressionPercent', 'reductionBlockSize']
+KIND = {'compression': 'compression, %',
+        'dedup': 'deduplication, %',
+        'reduction': 'total reduction (dedup, then compression), %',
+        'ideal': 'reduction : ideal_reduction, %. '
+        'ideal_reduction = dedupPercent * compressionPercent',
+        }
 
 
 def combine(names: List[str]) -> List[Tuple[str, str, List[str]]]:
@@ -68,7 +73,8 @@ def main() -> None:
     names = list(PARAMS.keys())
     combinations = combine(names)
     for d in ['params_s3bench', 'params_split',
-              'results_compressed', 'results_dedup']:
+              'results_compression', 'results_dedup',
+              'results_reduction']:
         os.makedirs(os.path.join(PATH, d), exist_ok=True)
     for c, cmd, v in combinations:
         for d, s in [
@@ -86,21 +92,26 @@ def main() -> None:
     r = {}
     for c, cmd, v in combinations:
         files = {}
-        for d in ['results_compressed', 'results_dedup']:
+        for d in ['results_compression', 'results_dedup', 'results_reduction']:
             with open(os.path.join(PATH, d, c)) as f:
                 files[d] = f.read()
         dedup = float(files['results_dedup'].split()[0]) / \
             float(int(files['results_dedup'].split()[1]))
-        print(v)
+        object_size = OBJECT_SIZE[v[names.index('objectSize')]]
+        reduction = float(files['results_reduction']) / object_size
+        ideal_reduction = float(v[names.index('compressionPercent')]) * \
+            float(v[names.index('dedupPercent')]) / 10000.
         r[c] = {
-            'compression': float(files['results_compressed']) /
-            OBJECT_SIZE[v[names.index('objectSize')]],
+            'compression': float(files['results_compression']) / object_size,
+            'reduction': reduction,
+            'ideal': reduction / ideal_reduction
+            if ideal_reduction != 0. else float('Inf'),
             'dedup': dedup,
         }
     HH = header(H)
     VH = header(V)
-    for kind in ['compression', 'dedup']:
-        print(kind)
+    for kind in KIND.keys():
+        print(KIND[kind])
         for hh in H:
             print(f'==> {hh}')
         for i, vh in enumerate(V):
