@@ -6,6 +6,12 @@ import (
 	mathrand "math/rand"
 )
 
+/*
+	reductionBlockSize Block size for deduplication and compression
+	compressionPercent Approximate compression percentage for each block compression. Range: [0, 100]. 0 for all zeroes, 100 for uncompressible data
+	dedupCortxUnitSize Blocks are duplicated only within every dedupCortxUnitSize of data. Must be a multiple of reductionBlockSize
+	dedupPercent Approximate percentage of unique blocks within dedupCortxUnitSize. Range: [0, 100]. 0 for dedupCortxUnitSize copies of the same block, 100 for all unique blocks
+ */
 func bufferFill(buf []byte, size int64, reductionBlockSize int64, compressionPercent float64, dedupCortxUnitSize int64, dedupPercent float64) {
 	compression := compressionPercent / 100.
 	dedup := dedupPercent / 100.
