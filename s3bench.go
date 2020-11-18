@@ -94,6 +94,7 @@ func main() {
 	fillZerosWithA := flag.Bool("fillZerosWithA", false, "When filling buffers with random data according to compressionPercent fill the rest of the buffer with 'A' characters instead of filling with 0s.")
 	testReductionFile := flag.String("testReductionFile", "", "File to store a buffer, filled with bufferFill. Nothing else except saving the buffer to the file is performed when this option is not empty. Options used: objectSize, reductionBlockSize, compressionPercent, dedupCortxUnitSize, dedupPercent, fillZerosWithA, bufferPatternFile")
 	bufferPatternFile := flag.String("bufferPatternFile", "", "File to use as a pattern for buffer for the objects. If objectSize is less than the size of the file, then the extra data is not used. If the size of the file is less than objectSize, then the file is repeated up until objectSize")
+	uniqueDataPerRequest := flag.Bool("uniqueDataPerRequest", false, "Each S3 PUT request will have it's own data, different from other S3 PUTs. Without this flag being set all PUT requests get the same data")
 
 	flag.Parse()
 
@@ -194,6 +195,7 @@ func main() {
 		testReductionFile:       *testReductionFile,
 		fillZerosWithA:          *fillZerosWithA,
 		bufferPatternFile:	 *bufferPatternFile,
+		uniqueDataPerRequest:    *uniqueDataPerRequest,
 	}
 
 	if !params.skipWrite {
@@ -351,7 +353,12 @@ func (params *Params) submitLoad(op string) {
 	for i := uint(0); i < opSamples; i++ {
 		key := genObjName(params.objectNamePrefix, data_hash_base32, i % params.numSamples)
 		if op == opWrite {
-			buf := bufferMakeParams(params)
+			var buf[]byte
+			if params.uniqueDataPerRequest {
+				buf = bufferBytes
+			} else {
+				buf = bufferMakeParams(params)
+			}
 			params.requests <- Req{
 				top: op,
 				req : &s3.PutObjectInput{

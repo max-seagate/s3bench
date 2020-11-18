@@ -30,37 +30,38 @@ type Resp struct {
 
 // Specifies the parameters for a given test
 type Params struct {
-	requests           chan Req
-	responses          chan Resp
-	numSamples         uint
-	numClients         uint
-	objectSize         int64
-	objectNamePrefix   string
-	bucketName         string
-	endpoints          []string
-	verbose            bool
-	headObj            bool
-	sampleReads        uint
-	clientDelay        int
-	jsonOutput         bool
-	deleteAtOnce       int
-	putObjTag          bool
-	getObjTag          bool
-	numTags            uint
-	readObj            bool
-	tagNamePrefix      string
-	tagValPrefix       string
-	reportFormat       string
-	validate           bool
-	skipWrite          bool
-	skipRead           bool
-	reductionBlockSize int64
-	compressionPercent float64
-	dedupCortxUnitSize int64
-	dedupPercent       float64
-	testReductionFile  string
-	fillZerosWithA     bool
-	bufferPatternFile  string
+	requests             chan Req
+	responses            chan Resp
+	numSamples           uint
+	numClients           uint
+	objectSize           int64
+	objectNamePrefix     string
+	bucketName           string
+	endpoints            []string
+	verbose              bool
+	headObj              bool
+	sampleReads          uint
+	clientDelay          int
+	jsonOutput           bool
+	deleteAtOnce         int
+	putObjTag            bool
+	getObjTag            bool
+	numTags              uint
+	readObj              bool
+	tagNamePrefix        string
+	tagValPrefix         string
+	reportFormat         string
+	validate             bool
+	skipWrite            bool
+	skipRead             bool
+	reductionBlockSize   int64
+	compressionPercent   float64
+	dedupCortxUnitSize   int64
+	dedupPercent         float64
+	testReductionFile    string
+	fillZerosWithA       bool
+	bufferPatternFile    string
+	uniqueDataPerRequest bool
 }
 
 // Contains the summary for a given test result
