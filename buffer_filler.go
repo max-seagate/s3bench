@@ -16,20 +16,20 @@ import (
 	dedupPercent		Approximate percentage of unique blocks within dedupCortxUnitSize. Range: [0, 100]. 0 for dedupCortxUnitSize copies of the same block, 100 for all unique blocks
 	fillZerosWithA		When filling buffers with random data according to compressionPercent fill the rest of the buffer with 'A' characters instead of filling with 0s.
  */
-func bufferFill(buf []byte, size int64, reductionBlockSize int64, compressionPercent float64, dedupCortxUnitSize int64, dedupPercent float64, fillZerosWithA bool) {
+func bufferFill(buf []byte, reductionBlockSize int64, compressionPercent float64, dedupCortxUnitSize int64, dedupPercent float64, fillZerosWithA bool) {
 	compression := compressionPercent / 100.
 	dedup := dedupPercent / 100.
 	// the buf is divided into large blocks, each block size is dedupCortxUnitSize
 	// lb for large block
-	lb_nr := (size + dedupCortxUnitSize - 1) / dedupCortxUnitSize   // total number of large blocks
+	lb_nr := (int64(len(buf)) + dedupCortxUnitSize - 1) / dedupCortxUnitSize  // total number of large blocks
 	for j := int64(0); j < lb_nr; j++ {
-		lb_offset := j * dedupCortxUnitSize                     // large block offset within buf
-		lb_length := size - lb_offset                           // remaning size of the large block
+		lb_offset := j * dedupCortxUnitSize				  // large block offset within buf
+		lb_length := int64(len(buf)) - lb_offset                          // remaning size of the large block
 		if (lb_length > dedupCortxUnitSize) {
 			lb_length = dedupCortxUnitSize
 		}
-		block_nr := (lb_length + reductionBlockSize - 1) / reductionBlockSize    // number of blocks within the large block
-		uniq_block_nr := int64(math.Round(float64(block_nr) * dedup))       // number of unique block within the large block
+		block_nr := (lb_length + reductionBlockSize - 1) / reductionBlockSize  // number of blocks within the large block
+		uniq_block_nr := int64(math.Round(float64(block_nr) * dedup))          // number of unique block within the large block
 		if (uniq_block_nr > block_nr) {
 			uniq_block_nr = block_nr
 		}
@@ -70,11 +70,11 @@ func bufferFill(buf []byte, size int64, reductionBlockSize int64, compressionPer
 
 func bufferGenerate(size int64, reductionBlockSize int64, compressionPercent float64, dedupCortxUnitSize int64, dedupPercent float64, fillZerosWithA bool) []byte {
 	buf := make([]byte, size, size)
-	bufferFill(buf, size, reductionBlockSize, compressionPercent, dedupCortxUnitSize, dedupPercent, fillZerosWithA)
+	bufferFill(buf, reductionBlockSize, compressionPercent, dedupCortxUnitSize, dedupPercent, fillZerosWithA)
 	return buf
 }
 
-func bufferFillFromFile(buf []byte, size int64, filename string) {
+func bufferFillFromFile(buf []byte, filename string) {
 	content, err := ioutil.ReadFile(filename)
 	if err != nil {
 		fmt.Println("Cannot read %s.", filename)
@@ -91,6 +91,6 @@ func bufferFillFromFile(buf []byte, size int64, filename string) {
 
 func bufferGenerateFromFile(size int64, filename string) []byte {
 	buf := make([]byte, size, size)
-	bufferFillFromFile(buf, size, filename)
+	bufferFillFromFile(buf, filename)
 	return buf
 }
