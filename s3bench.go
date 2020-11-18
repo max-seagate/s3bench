@@ -49,6 +49,7 @@ func (params *Params) prepareBucket(cfg *aws.Config) bool {
 func bufferFill(buf []byte, size int64, reductionBlockSize int64, compressionRatioPercent float64, dedupCortxUnitSize int64, dedupRatioPercent float64) {
 	compressionRatio := compressionRatioPercent / 100.
 	dedupRatio := dedupRatioPercent / 100.
+	// the buf is divided into large blocks, each block size is dedupCortxUnitSize
 	// lb for large block
 	lb_nr := (size + dedupCortxUnitSize - 1) / dedupCortxUnitSize   // total number of large blocks
 	for j := int64(0); j < lb_nr; j++ {
@@ -126,7 +127,7 @@ func main() {
 	skipRead := flag.Bool("skipRead", false, "do not run Read test")
 	reductionBlockSizeStr := flag.String("reductionBlockSize", "4096b", "Block size for deduplication and compression")
 	compressionRatioPercent := flag.Float64("compressionRatioPercent", 100., "Approximate compression ratio percentage for each block compression. Range: [0, 100]. 0 for all zeroes, 100 for uncompressible data")
-	dedupCortxUnitSizeStr := flag.String("dedupCortxUnitSize", "1Mb", "Blocks are duplicated only withing every dedupCortxUnitSize of data. Must be a multiple of reductionBlockSize")
+	dedupCortxUnitSizeStr := flag.String("dedupCortxUnitSize", "1Mb", "Blocks are duplicated only within every dedupCortxUnitSize of data. Must be a multiple of reductionBlockSize")
 	dedupRatioPercent := flag.Float64("dedupRatioPercent", 0., "Approximate percentage ratio of unique blocks within dedupCortxUnitSize. Range: [0, 100]. 0 for dedupCortxUnitSize copies of the same block, 100 for all unique blocks")
 	testReductionFile := flag.String("testReductionFile", "", "File to store a buffer, filled with bufferFill. Nothing else except saving the buffer to the file is performed when this option is not empty. Options used: objectSize, reductionBlockSize, compressionRatioPercent, dedupCortxUnitSize, dedupRatioPercent")
 
