@@ -44,6 +44,15 @@ func (params *Params) prepareBucket(cfg *aws.Config) bool {
 	return false
 }
 
+func bufferMake(size int64, reductionBlockSize int64, compressionPercent float64, dedupCortxUnitSize int64, dedupPercent float64, fillZerosWithA bool, bufferPatternFile string) []byte {
+	if bufferPatternFile == "" {
+		return bufferGenerate(size, reductionBlockSize, compressionPercent,
+				      dedupCortxUnitSize, dedupPercent, fillZerosWithA)
+	} else {
+		return bufferGenerateFromFile(size, bufferPatternFile)
+	}
+}
+
 func main() {
 	endpoint := flag.String("endpoint", "", "S3 endpoint(s) comma separated - http://IP:PORT,http://IP:PORT")
 	region := flag.String("region", "igneous-test", "AWS region to use, eg: us-west-1|us-east-1, etc")
@@ -76,7 +85,8 @@ func main() {
 	dedupCortxUnitSizeStr := flag.String("dedupCortxUnitSize", "1Mb", "Blocks are duplicated only within every dedupCortxUnitSize of data. Must be a multiple of reductionBlockSize")
 	dedupPercent := flag.Float64("dedupPercent", 0., "Approximate percentage of unique blocks within dedupCortxUnitSize. Range: [0, 100]. 0 for dedupCortxUnitSize copies of the same block, 100 for all unique blocks")
 	fillZerosWithA := flag.Bool("fillZerosWithA", false, "When filling buffers with random data according to compressionPercent fill the rest of the buffer with 'A' characters instead of filling with 0s.")
-	testReductionFile := flag.String("testReductionFile", "", "File to store a buffer, filled with bufferFill. Nothing else except saving the buffer to the file is performed when this option is not empty. Options used: objectSize, reductionBlockSize, compressionPercent, dedupCortxUnitSize, dedupPercent")
+	testReductionFile := flag.String("testReductionFile", "", "File to store a buffer, filled with bufferFill. Nothing else except saving the buffer to the file is performed when this option is not empty. Options used: objectSize, reductionBlockSize, compressionPercent, dedupCortxUnitSize, dedupPercent, fillZerosWithA, bufferPatternFile")
+	bufferPatternFile := flag.String("bufferPatternFile", "", "File to use as a pattern for buffer for the objects. If objectSize is less than the size of the file, then the extra data is not used. If the size of the file is less than objectSize, then the file is repeated up until objectSize")
 
 	flag.Parse()
 
@@ -111,9 +121,9 @@ func main() {
 	}
 
 	if *testReductionFile != "" {
-		buf := bufferGenerate(parse_size(*objectSize), parse_size(*reductionBlockSizeStr),
-				      *compressionPercent, parse_size(*dedupCortxUnitSizeStr),
-				      *dedupPercent, *fillZerosWithA)
+		buf := bufferMake(parse_size(*objectSize), parse_size(*reductionBlockSizeStr),
+				  *compressionPercent, parse_size(*dedupCortxUnitSizeStr),
+				  *dedupPercent, *fillZerosWithA, *bufferPatternFile)
 		err := ioutil.WriteFile(*testReductionFile, buf, 0644)
 		if err != nil {
 			fmt.Println("Error writing to testReductionFile.")
@@ -176,17 +186,17 @@ func main() {
 		dedupPercent:       *dedupPercent,
 		testReductionFile:       *testReductionFile,
 		fillZerosWithA:          *fillZerosWithA,
+		bufferPatternFile:	 *bufferPatternFile,
 	}
 
 	if !params.skipWrite {
 		// Generate the data from which we will do the writting
 		params.printf("Generating in-memory sample data...\n")
 		timeGenData := time.Now()
-		bufferBytes = make([]byte, params.objectSize, params.objectSize)
-		bufferFill(bufferBytes, params.objectSize,
-		           params.reductionBlockSize, params.compressionPercent,
-			   params.dedupCortxUnitSize, params.dedupPercent,
-	                   params.fillZerosWithA)
+		bufferBytes = bufferMake(params.objectSize, params.reductionBlockSize,
+		                         params.compressionPercent, params.dedupCortxUnitSize,
+					 params.dedupPercent, params.fillZerosWithA,
+					 params.bufferPatternFile)
 		data_hash = sha512.Sum512(bufferBytes)
 		data_hash_base32 = to_b32(data_hash[:])
 		params.printf("Done (%s)\n", time.Since(timeGenData))

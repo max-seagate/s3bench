@@ -2,7 +2,10 @@ package main
 
 import (
 	"crypto/rand"
+	"io/ioutil"
 	"math"
+	"fmt"
+	"os"
 	mathrand "math/rand"
 )
 
@@ -68,5 +71,26 @@ func bufferFill(buf []byte, size int64, reductionBlockSize int64, compressionPer
 func bufferGenerate(size int64, reductionBlockSize int64, compressionPercent float64, dedupCortxUnitSize int64, dedupPercent float64, fillZerosWithA bool) []byte {
 	buf := make([]byte, size, size)
 	bufferFill(buf, size, reductionBlockSize, compressionPercent, dedupCortxUnitSize, dedupPercent, fillZerosWithA)
+	return buf
+}
+
+func bufferFillFromFile(buf []byte, size int64, filename string) {
+	content, err := ioutil.ReadFile(filename)
+	if err != nil {
+		fmt.Println("Cannot read %s.", filename)
+		os.Exit(1)
+	}
+	for offset := 0; offset < len(buf); offset += len(content) {
+		left := len(buf) - offset
+		if left > len(content) {
+			left = len(content)
+		}
+		copy(buf[offset : offset + left], content)
+	}
+}
+
+func bufferGenerateFromFile(size int64, filename string) []byte {
+	buf := make([]byte, size, size)
+	bufferFillFromFile(buf, size, filename)
 	return buf
 }

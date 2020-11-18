@@ -60,6 +60,7 @@ type Params struct {
 	dedupPercent       float64
 	testReductionFile  string
 	fillZerosWithA     bool
+	bufferPatternFile  string
 }
 
 // Contains the summary for a given test result
