@@ -53,6 +53,13 @@ func bufferMake(size int64, reductionBlockSize int64, compressionPercent float64
 	}
 }
 
+func bufferMakeParams(params *Params) []byte {
+	return bufferMake(params.objectSize, params.reductionBlockSize,
+			  params.compressionPercent, params.dedupCortxUnitSize,
+			  params.dedupPercent, params.fillZerosWithA,
+			  params.bufferPatternFile)
+}
+
 func main() {
 	endpoint := flag.String("endpoint", "", "S3 endpoint(s) comma separated - http://IP:PORT,http://IP:PORT")
 	region := flag.String("region", "igneous-test", "AWS region to use, eg: us-west-1|us-east-1, etc")
@@ -193,10 +200,7 @@ func main() {
 		// Generate the data from which we will do the writting
 		params.printf("Generating in-memory sample data...\n")
 		timeGenData := time.Now()
-		bufferBytes = bufferMake(params.objectSize, params.reductionBlockSize,
-		                         params.compressionPercent, params.dedupCortxUnitSize,
-					 params.dedupPercent, params.fillZerosWithA,
-					 params.bufferPatternFile)
+		bufferBytes = bufferMakeParams(&params)
 		data_hash = sha512.Sum512(bufferBytes)
 		data_hash_base32 = to_b32(data_hash[:])
 		params.printf("Done (%s)\n", time.Since(timeGenData))
@@ -347,12 +351,13 @@ func (params *Params) submitLoad(op string) {
 	for i := uint(0); i < opSamples; i++ {
 		key := genObjName(params.objectNamePrefix, data_hash_base32, i % params.numSamples)
 		if op == opWrite {
+			buf := bufferMakeParams(params)
 			params.requests <- Req{
 				top: op,
 				req : &s3.PutObjectInput{
 					Bucket: bucket,
 					Key:    key,
-					Body:   bytes.NewReader(bufferBytes),
+					Body:   bytes.NewReader(buf),
 				},
 			}
 		} else if op == opRead || op == opValidate {
