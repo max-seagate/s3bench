@@ -5,6 +5,7 @@ s3bench_image = s3bench
 s3bench_pull_binary_container = s3bench-pull-binary
 
 test_image = s3bench-test
+test_pattern_file = test-pattern-s3bench.txt
 
 all: build ;
 
@@ -29,4 +30,5 @@ test-interactive: build test-build
 
 test: build test-build
 	./s3bench -testReductionFile test-reduction-file -objectSize 8MiB -reductionBlockSize 4KiB -compressionPercent 30 -dedupCortxUnitSize 1MiB -dedupPercent 10
+	./s3bench -bufferPatternFile s3bench.go -objectSize 500B -testReductionFile $(test_pattern_file) && stat $(test_pattern_file) && cat $(test_pattern_file) && echo && rm -v $(test_pattern_file)
 	docker run --tty --rm $(test_image) ./test.py || true

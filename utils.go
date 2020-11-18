@@ -27,8 +27,12 @@ func parse_size(sz string) int64 {
 		"KiB": 1024,
 		"MiB": 1024 * 1024,
 		"GiB": 1024 * 1024 * 1024,
+		"b": 1,
+		"Kb": 1024,
+		"Mb": 1024 * 1024,
+		"Gb": 1024 * 1024 * 1024,
 	}
-	re := regexp.MustCompile(`^(\d+)(|B|KiB|MiB|GiB)$`)
+	re := regexp.MustCompile(`^(\d+)(|B|KiB|MiB|GiB|b|Kb|Mb|Gb)$`)
 	mm := re.FindStringSubmatch(sz)
 	if len(mm) != 3 {
 		fmt.Println(mm)
