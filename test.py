@@ -16,11 +16,11 @@ from typing import Optional
 
 OBJECT_SIZE = 16 * 2 ** 20
 PARAMS = {
-    'compressionRatioPercent': ['0', '10', '20', '40', '60', '80', '100'],
-    'dedupRatioPercent':       ['0', '10', '20', '40', '60', '80', '100'],
-    'reductionBlockSize':      ['4Kb', '16Kb', '64Kb', '256Kb', '1Mb'],
-    'dedupCortxUnitSize':      ['1Mb', '4Mb'],
-    'objectSize':              [f'{str(OBJECT_SIZE)}b'],
+    'compressionPercent': ['0', '10', '20', '40', '60', '80', '100'],
+    'dedupPercent':       ['0', '10', '20', '40', '60', '80', '100'],
+    'reductionBlockSize': ['4Kb', '16Kb', '64Kb', '256Kb', '1Mb'],
+    'dedupCortxUnitSize': ['1Mb', '4Mb'],
+    'objectSize':         [f'{str(OBJECT_SIZE)}b'],
 }
 SPLIT_SIZE = {'4Kb': 4096, '16Kb': 16384, '64Kb': 65536, '256Kb': 262144,
               '1Mb': 1048576}
@@ -28,8 +28,8 @@ COMPRESSOR = 'lz4'
 HASH = 'sha1sum'
 PATH = 'test'
 W = 6
-H = ['dedupRatioPercent', 'dedupCortxUnitSize']
-V = ['compressionRatioPercent', 'reductionBlockSize']
+H = ['dedupPercent', 'dedupCortxUnitSize']
+V = ['compressionPercent', 'reductionBlockSize']
 
 
 def combine(names: List[str]) -> List[Tuple[str, str, List[str]]]:
