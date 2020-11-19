@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"sync"
 	mathrand "math/rand"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -20,7 +21,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3"
 )
 
-var bufferBytes []byte
+var bufferBytes [][]byte
 var data_hash_base32 string
 var data_hash [sha512.Size]byte
 
@@ -202,8 +203,23 @@ func main() {
 		// Generate the data from which we will do the writting
 		params.printf("Generating in-memory sample data...\n")
 		timeGenData := time.Now()
-		bufferBytes = bufferMakeParams(&params)
-		data_hash = sha512.Sum512(bufferBytes)
+		var bufs_nr uint
+		if params.uniqueDataPerRequest {
+			bufs_nr = params.numSamples
+		} else {
+			bufs_nr = 1
+		}
+		bufferBytes = make([][]byte, bufs_nr, bufs_nr)
+		var wg sync.WaitGroup
+		for i := 0; i < len(bufferBytes); i++ {
+			wg.Add(1)
+			go func(index int) {
+				bufferBytes[index] = bufferMakeParams(&params)
+				wg.Done()
+			}(i)
+		}
+		wg.Wait()
+		data_hash = sha512.Sum512(bufferBytes[0])
 		data_hash_base32 = to_b32(data_hash[:])
 		params.printf("Done (%s)\n", time.Since(timeGenData))
 	}
@@ -353,18 +369,18 @@ func (params *Params) submitLoad(op string) {
 	for i := uint(0); i < opSamples; i++ {
 		key := genObjName(params.objectNamePrefix, data_hash_base32, i % params.numSamples)
 		if op == opWrite {
-			var buf[]byte
+			var bufIndex uint
 			if params.uniqueDataPerRequest {
-				buf = bufferBytes
+				bufIndex = i
 			} else {
-				buf = bufferMakeParams(params)
+				bufIndex = 0
 			}
 			params.requests <- Req{
 				top: op,
 				req : &s3.PutObjectInput{
 					Bucket: bucket,
 					Key:    key,
-					Body:   bytes.NewReader(buf),
+					Body:   bytes.NewReader(bufferBytes[bufIndex]),
 				},
 			}
 		} else if op == opRead || op == opValidate {
