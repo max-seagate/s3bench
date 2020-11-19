@@ -437,9 +437,9 @@ func (params *Params) startClient(cfg *aws.Config) {
 		case *s3.PutObjectInput:
 			var buf[]byte
 			if params.uniqueDataPerRequest {
-				buf = bufferMakeParams(params)
-			} else {
 				buf = bufferBytes
+			} else {
+				buf = bufferMakeParams(params)
 			}
 			r.Body = bytes.NewReader(buf)
 			req, _ := svc.PutObjectRequest(r)
