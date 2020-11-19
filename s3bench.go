@@ -442,7 +442,6 @@ func (params *Params) startClient(cfg *aws.Config) {
 				buf = bufferBytes
 			}
 			r.Body = bytes.NewReader(buf)
-			putStartTime := time.Now()
 			req, _ := svc.PutObjectRequest(r)
 			// Disable payload checksum calculation (very expensive)
 			req.HTTPRequest.Header.Add("X-Amz-Content-Sha256", "UNSIGNED-PAYLOAD")
