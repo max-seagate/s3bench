@@ -353,11 +353,18 @@ func (params *Params) submitLoad(op string) {
 	for i := uint(0); i < opSamples; i++ {
 		key := genObjName(params.objectNamePrefix, data_hash_base32, i % params.numSamples)
 		if op == opWrite {
+			var buf[]byte
+			if params.uniqueDataPerRequest {
+				buf = bufferBytes
+			} else {
+				buf = bufferMakeParams(params)
+			}
 			params.requests <- Req{
 				top: op,
 				req : &s3.PutObjectInput{
 					Bucket: bucket,
 					Key:    key,
+					Body:   bytes.NewReader(buf),
 				},
 			}
 		} else if op == opRead || op == opValidate {
@@ -435,13 +442,6 @@ func (params *Params) startClient(cfg *aws.Config) {
 
 		switch r := request.req.(type) {
 		case *s3.PutObjectInput:
-			var buf[]byte
-			if params.uniqueDataPerRequest {
-				buf = bufferBytes
-			} else {
-				buf = bufferMakeParams(params)
-			}
-			r.Body = bytes.NewReader(buf)
 			req, _ := svc.PutObjectRequest(r)
 			// Disable payload checksum calculation (very expensive)
 			req.HTTPRequest.Header.Add("X-Amz-Content-Sha256", "UNSIGNED-PAYLOAD")
