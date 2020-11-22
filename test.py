@@ -15,8 +15,8 @@ from typing import Optional
 
 
 PARAMS = {
-    'compressionPercent': ['0', '10', '20', '40', '60', '80', '100'],
-    'dedupPercent':       ['0', '10', '20', '40', '60', '80', '100'],
+    'compressionSavings': ['0', '10', '20', '40', '60', '80', '100'],
+    'dedupSavings':       ['0', '10', '20', '40', '60', '80', '100'],
     'reductionBlockSize': ['4KiB', '16KiB', '64KiB', '256KiB', '1MiB'],
     'dedupCortxUnitSize': ['1MiB', '4MiB'],
     'objectSize':         ['16MiB'],
@@ -27,13 +27,14 @@ OBJECT_SIZE = {'16MiB': 16 * 2 ** 20}
 HASH = 'sha1sum'
 PATH = 'test'
 W = 6
-H = ['dedupPercent', 'dedupCortxUnitSize']
-V = ['compressionPercent', 'reductionBlockSize']
-KIND = {'compression': 'compression, %',
-        'dedup': 'deduplication, %',
-        'reduction': 'total reduction (dedup, then compression), %',
-        'ideal': 'reduction : ideal_reduction, %. '
-        'ideal_reduction = dedupPercent * compressionPercent',
+H = ['dedupSavings', 'dedupCortxUnitSize']
+V = ['compressionSavings', 'reductionBlockSize']
+KIND = {'compression_savings': 'compression savings, %',
+        'dedup_savings': 'deduplication savings, %',
+        'savings': 'total savings (dedup, then compression), %',
+        'ideal': 'ideal savings (dedup, then compression), in case '
+        'if dedup and compression rates are precise, %',
+        'real_to_ideal': 'savings : ideal, %. '
         }
 
 
@@ -95,18 +96,28 @@ def main() -> None:
         for d in ['results_compression', 'results_dedup', 'results_reduction']:
             with open(os.path.join(PATH, d, c)) as f:
                 files[d] = f.read()
-        dedup = float(files['results_dedup'].split()[0]) / \
-            float(int(files['results_dedup'].split()[1]))
-        object_size = OBJECT_SIZE[v[names.index('objectSize')]]
-        reduction = float(files['results_reduction']) / object_size
-        ideal_reduction = float(v[names.index('compressionPercent')]) * \
-            float(v[names.index('dedupPercent')]) / 10000.
+        object_size = float(OBJECT_SIZE[v[names.index('objectSize')]])
+        compressed = float(files['results_compression'])
+        dedup_unique, dedup_total = \
+            [float(s) for s in files['results_dedup'].split()]
+        reduced = float(files['results_reduction'])
+        compression_savings = (object_size - compressed) / object_size
+        dedup_savings = (dedup_total - dedup_unique) / dedup_total
+        savings = (object_size - reduced) / object_size
+        ideal_compression_savings = float(v[names.index('compressionSavings')])
+        ideal_dedup_savings = float(v[names.index('dedupSavings')])
+        if ideal_compression_savings == 100. or ideal_dedup_savings == 100.:
+            ideal = 1.
+        else:
+            ideal = 1. - 0.0001 * \
+                (100. - ideal_compression_savings) * \
+                (100. - ideal_dedup_savings)
         r[c] = {
-            'compression': float(files['results_compression']) / object_size,
-            'reduction': reduction,
-            'ideal': reduction / ideal_reduction
-            if ideal_reduction != 0. else float('Inf'),
-            'dedup': dedup,
+            'compression_savings': compression_savings,
+            'dedup_savings': dedup_savings,
+            'savings': savings,
+            'ideal': ideal,
+            'real_to_ideal': savings / ideal if ideal != 0. else float('Inf'),
         }
     HH = header(H)
     VH = header(V)

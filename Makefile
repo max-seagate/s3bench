@@ -29,6 +29,6 @@ test-interactive: build test-build
 	docker run --interactive --tty --rm $(test_image) /bin/bash || true
 
 test: build test-build
-	./s3bench -testReductionFile test-reduction-file -objectSize 8MiB -reductionBlockSize 4KiB -compressionPercent 30 -dedupCortxUnitSize 1MiB -dedupPercent 10
+	./s3bench -testReductionFile test-reduction-file -objectSize 8MiB -reductionBlockSize 4KiB -compressionSavings 70 -dedupCortxUnitSize 1MiB -dedupSavings 90
 	./s3bench -bufferPatternFile s3bench.go -objectSize 500B -testReductionFile $(test_pattern_file) && stat $(test_pattern_file) && cat $(test_pattern_file) && echo && rm -v $(test_pattern_file)
 	docker run --tty --rm $(test_image) ./test.py || true

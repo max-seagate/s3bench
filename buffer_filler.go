@@ -11,14 +11,14 @@ import (
 
 /*
 	reductionBlockSize	Block size for deduplication and compression
-	compressionPercent	Approximate compression percentage for each block compression. Range: [0, 100]. 0 for all zeroes, 100 for uncompressible data
+	compressionSavings	Approximate savings from compression for each block, %. Range: [0, 100]. 0 for uncompressible data, 100 for all bytes to the same value (0 if fillZerosWithA is false, 'A' otherwise)
 	dedupCortxUnitSize	Blocks are duplicated only within every dedupCortxUnitSize of data. Must be a multiple of reductionBlockSize
-	dedupPercent		Approximate percentage of unique blocks within dedupCortxUnitSize. Range: [0, 100]. 0 for dedupCortxUnitSize copies of the same block, 100 for all unique blocks
-	fillZerosWithA		When filling buffers with random data according to compressionPercent fill the rest of the buffer with 'A' characters instead of filling with 0s.
+	dedupSavings		Approximate percentage of non-unique blocks within dedupCortxUnitSize. Range: [0, 100]. 0 for all unique blocks, 100 for dedupCortxUnitSize copies of the same block
+	fillZerosWithA		When filling buffers with random data according to compressionSavings fill the rest of the buffer with 'A' characters instead of filling with 0s.
  */
-func bufferFill(buf []byte, reductionBlockSize int64, compressionPercent float64, dedupCortxUnitSize int64, dedupPercent float64, fillZerosWithA bool) {
-	compression := compressionPercent / 100.
-	dedup := dedupPercent / 100.
+func bufferFill(buf []byte, reductionBlockSize int64, compressionSavings float64, dedupCortxUnitSize int64, dedupSavings float64, fillZerosWithA bool) {
+	compression := 1. - compressionSavings / 100.
+	dedup := 1. - dedupSavings / 100.
 	// the buf is divided into large blocks, each block size is dedupCortxUnitSize
 	// lb for large block
 	lb_nr := (int64(len(buf)) + dedupCortxUnitSize - 1) / dedupCortxUnitSize  // total number of large blocks
@@ -68,9 +68,9 @@ func bufferFill(buf []byte, reductionBlockSize int64, compressionPercent float64
 	}
 }
 
-func bufferGenerate(size int64, reductionBlockSize int64, compressionPercent float64, dedupCortxUnitSize int64, dedupPercent float64, fillZerosWithA bool) []byte {
+func bufferGenerate(size int64, reductionBlockSize int64, compressionSavings float64, dedupCortxUnitSize int64, dedupSavings float64, fillZerosWithA bool) []byte {
 	buf := make([]byte, size, size)
-	bufferFill(buf, reductionBlockSize, compressionPercent, dedupCortxUnitSize, dedupPercent, fillZerosWithA)
+	bufferFill(buf, reductionBlockSize, compressionSavings, dedupCortxUnitSize, dedupSavings, fillZerosWithA)
 	return buf
 }
 

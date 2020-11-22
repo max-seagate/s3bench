@@ -45,10 +45,10 @@ func (params *Params) prepareBucket(cfg *aws.Config) bool {
 	return false
 }
 
-func bufferMake(size int64, reductionBlockSize int64, compressionPercent float64, dedupCortxUnitSize int64, dedupPercent float64, fillZerosWithA bool, bufferPatternFile string) []byte {
+func bufferMake(size int64, reductionBlockSize int64, compressionSavings float64, dedupCortxUnitSize int64, dedupSavings float64, fillZerosWithA bool, bufferPatternFile string) []byte {
 	if bufferPatternFile == "" {
-		return bufferGenerate(size, reductionBlockSize, compressionPercent,
-				      dedupCortxUnitSize, dedupPercent, fillZerosWithA)
+		return bufferGenerate(size, reductionBlockSize, compressionSavings,
+				      dedupCortxUnitSize, dedupSavings, fillZerosWithA)
 	} else {
 		return bufferGenerateFromFile(size, bufferPatternFile)
 	}
@@ -56,8 +56,8 @@ func bufferMake(size int64, reductionBlockSize int64, compressionPercent float64
 
 func bufferMakeParams(params *Params) []byte {
 	return bufferMake(params.objectSize, params.reductionBlockSize,
-			  params.compressionPercent, params.dedupCortxUnitSize,
-			  params.dedupPercent, params.fillZerosWithA,
+			  params.compressionSavings, params.dedupCortxUnitSize,
+			  params.dedupSavings, params.fillZerosWithA,
 			  params.bufferPatternFile)
 }
 
@@ -89,11 +89,11 @@ func main() {
 	skipWrite := flag.Bool("skipWrite", false, "do not run Write test")
 	skipRead := flag.Bool("skipRead", false, "do not run Read test")
 	reductionBlockSizeStr := flag.String("reductionBlockSize", "4KiB", "Block size for deduplication and compression")
-	compressionPercent := flag.Float64("compressionPercent", 100., "Approximate compression percentage for each block compression. Range: [0, 100]. 0 for all bytes to the same value (0 if fillZerosWithA is false, 'A' otherwise), 100 for uncompressible data")
+	compressionSavings := flag.Float64("compressionSavings", 0., "Approximate savings from compression for each block, %. Range: [0, 100]. 0 for uncompressible data, 100 for all bytes to the same value (0 if fillZerosWithA is false, 'A' otherwise)")
 	dedupCortxUnitSizeStr := flag.String("dedupCortxUnitSize", "1MiB", "Blocks are duplicated only within every dedupCortxUnitSize of data. Must be a multiple of reductionBlockSize")
-	dedupPercent := flag.Float64("dedupPercent", 0., "Approximate percentage of unique blocks within dedupCortxUnitSize. Range: [0, 100]. 0 for dedupCortxUnitSize copies of the same block, 100 for all unique blocks")
-	fillZerosWithA := flag.Bool("fillZerosWithA", false, "When filling buffers with random data according to compressionPercent fill the rest of the buffer with 'A' characters instead of filling with 0s.")
-	testReductionFile := flag.String("testReductionFile", "", "File to store a buffer, filled with bufferFill. Nothing else except saving the buffer to the file is performed when this option is not empty. Options used: objectSize, reductionBlockSize, compressionPercent, dedupCortxUnitSize, dedupPercent, fillZerosWithA, bufferPatternFile")
+	dedupSavings := flag.Float64("dedupSavings", 0., "Approximate percentage of non-unique blocks within dedupCortxUnitSize. Range: [0, 100]. 0 for all unique blocks, 100 for dedupCortxUnitSize copies of the same block")
+	fillZerosWithA := flag.Bool("fillZerosWithA", false, "When filling buffers with random data according to compressionSavings fill the rest of the buffer with 'A' characters instead of filling with 0s.")
+	testReductionFile := flag.String("testReductionFile", "", "File to store a buffer, filled with bufferFill. Nothing else except saving the buffer to the file is performed when this option is not empty. Options used: objectSize, reductionBlockSize, compressionSavings, dedupCortxUnitSize, dedupSavings, fillZerosWithA, bufferPatternFile")
 	bufferPatternFile := flag.String("bufferPatternFile", "", "File to use as a pattern for buffer for the objects. If objectSize is less than the size of the file, then the extra data is not used. If the size of the file is less than objectSize, then the file is repeated up until objectSize")
 	uniqueDataPerRequest := flag.Bool("uniqueDataPerRequest", false, "Each S3 PUT request will have it's own data, different from other S3 PUTs. Without this flag being set all PUT requests get the same data")
 
@@ -104,13 +104,13 @@ func main() {
 		os.Exit(0)
 	}
 
-	if *compressionPercent > 100.0 || *compressionPercent < 0.0 {
-		fmt.Println("compressionPercent must be in range [0, 100].")
+	if *compressionSavings > 100.0 || *compressionSavings < 0.0 {
+		fmt.Println("compressionSavings must be in range [0, 100].")
 		os.Exit(1)
 	}
 
-	if *dedupPercent > 100.0 || *dedupPercent < 0.0 {
-		fmt.Println("dedupPercent must be in range [0, 100].")
+	if *dedupSavings > 100.0 || *dedupSavings < 0.0 {
+		fmt.Println("dedupSavings must be in range [0, 100].")
 		os.Exit(1)
 	}
 
@@ -131,8 +131,8 @@ func main() {
 
 	if *testReductionFile != "" {
 		buf := bufferMake(parse_size(*objectSize), parse_size(*reductionBlockSizeStr),
-				  *compressionPercent, parse_size(*dedupCortxUnitSizeStr),
-				  *dedupPercent, *fillZerosWithA, *bufferPatternFile)
+				  *compressionSavings, parse_size(*dedupCortxUnitSizeStr),
+				  *dedupSavings, *fillZerosWithA, *bufferPatternFile)
 		err := ioutil.WriteFile(*testReductionFile, buf, 0644)
 		if err != nil {
 			fmt.Println("Error writing to testReductionFile.")
@@ -190,9 +190,9 @@ func main() {
 		skipWrite:               *skipWrite,
 		skipRead:                *skipRead,
 		reductionBlockSize:      parse_size(*reductionBlockSizeStr),
-		compressionPercent: *compressionPercent,
+		compressionSavings:     *compressionSavings,
 		dedupCortxUnitSize:      parse_size(*dedupCortxUnitSizeStr),
-		dedupPercent:       *dedupPercent,
+		dedupSavings:           *dedupSavings,
 		testReductionFile:       *testReductionFile,
 		fillZerosWithA:          *fillZerosWithA,
 		bufferPatternFile:	 *bufferPatternFile,

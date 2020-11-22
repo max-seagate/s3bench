@@ -55,9 +55,9 @@ type Params struct {
 	skipWrite            bool
 	skipRead             bool
 	reductionBlockSize   int64
-	compressionPercent   float64
+	compressionSavings   float64
 	dedupCortxUnitSize   int64
-	dedupPercent         float64
+	dedupSavings         float64
 	testReductionFile    string
 	fillZerosWithA       bool
 	bufferPatternFile    string
